@@ -1,0 +1,18 @@
+h
+loadfile build/STM32G4_BOOT.bin
+h
+loadfile build/STM32G4_BOOT.bin
+r
+qc
+h
+loadfile build/STM32G4_BOOT.bin
+r
+qc
+h
+loadfile build/STM32G4_BOOT.bin
+r
+qc
+h
+loadfile build/STM32G4_BOOT.bin
+r
+qc

@@ -1,3 +1,6 @@
+## gcc常用的编译选项
+    https://blog.csdn.net/bandaoyu/article/details/115419255
+
 ## .ld文件
 
 ### .ld文件中的地址问题
