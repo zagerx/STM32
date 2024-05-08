@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<JScopeProject>
+    <FileVersion major="1" minor="1" />
+    <Project>
+        <Configuration>
+            <JLink>
+                <Options Connection="1" IsRTTSession="0" IsRTTWithTimeStamp="0" SamplingPeriod="1000" SerialNo="0" JTAG_IRPre="0" JTAG_DRPre="0" IP="" TargetDevice="STM32F405RG" TargetInterface="SWD" InterfaceSpeed="4000" />
+            </JLink>
+            <ElfFile Name="D:\BaiduNetdiskDownload\ODriveÒÆÖ²keil\8_±Õ»·¿ØÖÆ\8_closeloop\8_closeloop\Objects\motorF4.axf" />
+            <Scope>
+                <Options TimeResolutionUs="1000000" />
+            </Scope>
+        </Configuration>
+        <Windows>
+            <Graph Show="1" />
+            <Watch Show="1" />
+        </Windows>
+        <SelectedSymbols>
+            <Symbol>
+                <Options Name="test_tarq" Address="0x20000178" Type="float" TypeID="1" Size="4" GraphColorRed="255" GraphColorGreen="0" GraphColorBlue="0" YMinSampled="-1.25" YMaxSampled="0.196075" YAvgSampled="-0.223623" Offset="4" ShowInGraph="1" YOffset="0" IsAutoConfig="0" YResolution="1" MaxValue="-2147483648" File="MotorControl\foc.c" Scope="0" DrawStyle="0" NameWithParents="test_tarq" />
+            </Symbol>
+            <Symbol>
+                <Options Name="test_realq" Address="0x20000174" Type="float" TypeID="1" Size="4" GraphColorRed="0" GraphColorGreen="0" GraphColorBlue="255" YMinSampled="-3.02445" YMaxSampled="1.31443" YAvgSampled="-0.167835" Offset="8" ShowInGraph="1" YOffset="0" IsAutoConfig="0" YResolution="1" MaxValue="-2147483648" File="MotorControl\foc.c" Scope="0" DrawStyle="0" NameWithParents="test_realq" />
+            </Symbol>
+        </SelectedSymbols>
+    </Project>
+</JScopeProject>
