@@ -51,6 +51,7 @@ void TIM1_PWM_Init(void)
 	TIM_OCInitStructure.TIM_OCIdleState = TIM_OCIdleState_Reset;     //空闲状态为低
 	TIM_OCInitStructure.TIM_OCNIdleState = TIM_OCNIdleState_Reset;   //空闲状态为低
 	TIM_OC1Init(TIM1, &TIM_OCInitStructure);
+ 
 	TIM_OC2Init(TIM1, &TIM_OCInitStructure);
 	TIM_OC3Init(TIM1, &TIM_OCInitStructure);
 	

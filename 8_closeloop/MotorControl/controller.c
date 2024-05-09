@@ -16,8 +16,6 @@ float *controller_pos_wrap_src_ = NULL;
 
 float pos_setpoint_ = 0.0f; // [turns]
 float vel_setpoint_ = 0.0f; // [turn/s]
-float vel_integrator_torque_ = 0.0f;    // [Nm]
-float torque_setpoint_ = 0.0f;  // [Nm]
 
 float input_pos_ = 0.0f;     // [turns]
 float input_vel_ = 0.0f;     // [turn/s]
@@ -27,7 +25,7 @@ float input_filter_ki_ = 0.0f;
 
 float autotuning_phase_ = 0.0f;
 
-bool input_pos_updated_ = false;
+// bool input_pos_updated_ = false;
 
 bool trajectory_done_ = true;
 
@@ -90,10 +88,7 @@ void controller_para_init(void)
 //arm() 函数中调用一次
 void controller_reset(void) 
 {
-	// pos_setpoint is initialized in start_closed_loop_control
 	vel_setpoint_ = 0.0f;
-	vel_integrator_torque_ = 0.0f;
-	torque_setpoint_ = 0.0f; 
 	mechanical_power_ = 0.0f;
 	electrical_power_ = 0.0f;
 }
@@ -105,18 +100,7 @@ void move_to_pos(float goal_point)
 	trajectory_done_ = false;
 }
 /****************************************************************************/
-bool control_mode_updated(void)
-{
-	float *estimate;
-	
-	if (ctrl_config.control_mode >= CONTROL_MODE_POSITION_CONTROL)
-	{
-		estimate = (ctrl_config.circular_setpoints ? controller_pos_estimate_circular_src_ : controller_pos_estimate_linear_src_);
-		pos_setpoint_ = *estimate;
-		input_pos_ = *estimate;    //把当前位置做为目标位置，保证闭环后电机不动
-	}
-	return true;
-}
+
 /****************************************************************************/
 //生成的两个变量用于 INPUT_MODE_POS_FILTER 模式
 void Controller_update_filter_gains(void)
@@ -139,45 +123,25 @@ bool controller_update(void)
 	float *pos_estimate_circular;
 	float *pos_wrap;
 	float *vel_estimate;
+	float torque = 0.0f;
 		
 	vel_estimate = controller_vel_estimate_src_;
 	
 	if (!has_value(vel_estimate))
 		return 0;
-	switch (ctrl_config.input_mode)
-	{
-		case INPUT_MODE_PASSTHROUGH: {  //直通模式，输入指令直接赋值给设定值
-			torque_setpoint_ = input_torque_; 
-		} break;
-		default: {
-			set_error(ERROR_INVALID_INPUT_MODE);
-			return 0;
-		}
-	}
-	
+	torque = input_torque_; 
 	// Never command a setpoint beyond its limit
-	
 	const float Tlim = motor_max_available_torque();   //max_torque = effective_current_lim_ * config_.torque_constant = 60*0.04f = 2.4f;
-	torque_setpoint_ = clamp(torque_setpoint_, -Tlim, Tlim);
-	
-	// Position control
-	// TODO Decide if we want to use encoder or pll position here
-	float gain_scheduling_multiplier = 1.0f;
-	
-  float vel_gain = ctrl_config.vel_gain;
-	float vel_integrator_gain = ctrl_config.vel_integrator_gain;
-	// Velocity control
-	float torque = torque_setpoint_;
-	
-	float v_err = 0.0f;
+	torque = clamp(torque, -Tlim, Tlim);
 
-	
+  	float vel_gain = ctrl_config.vel_gain;
+	float vel_integrator_gain = ctrl_config.vel_integrator_gain;	
 	// Velocity limiting in current mode
 	if (ctrl_config.control_mode < CONTROL_MODE_VELOCITY_CONTROL && ctrl_config.enable_torque_mode_vel_limit)
 	{
 		torque = limitVel(ctrl_config.vel_limit, *vel_estimate, vel_gain, torque);
 	}
-	
+
 	// Torque limiting
 	uint8_t limited = 0;
 	if (torque > Tlim)
@@ -191,27 +155,6 @@ bool controller_update(void)
 		torque = -Tlim;
 	}
 	
-	// Velocity integrator (behaviour dependent on limiting)
-	if (ctrl_config.control_mode < CONTROL_MODE_VELOCITY_CONTROL)
-	{
-		// reset integral if not in use
-		vel_integrator_torque_ = 0.0f;
-	}
-	else
-	{
-		if (limited)
-		{
-			// TODO make decayfactor configurable
-			vel_integrator_torque_ *= 0.99f;
-		}
-		else
-		{
-			vel_integrator_torque_ += ((vel_integrator_gain * gain_scheduling_multiplier) * current_meas_period) * v_err;
-		}
-		// integrator limiting to prevent windup 
-		vel_integrator_torque_ = clamp(vel_integrator_torque_, -ctrl_config.vel_integrator_limit, ctrl_config.vel_integrator_limit);
-	}
-
 	torque_output_ = torque;
 
 	motor_error &= ~ERROR_INVALID_ESTIMATE;

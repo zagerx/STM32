@@ -58,10 +58,6 @@ typedef struct
 	bool enable_vel_limit;
 	bool enable_overspeed_error;
 	bool enable_torque_mode_vel_limit;  // 力矩模式下，如果电机转速超过vel_limit ，电机输出的力矩将会减小
-	//uint8_t axis_to_mirror;
-	//float mirror_ratio;
-	//float torque_mirror_ratio;
-	//uint8_t load_encoder_axis;  // default depends on Axis number and is set in load_configuration(). Set to -1 to select sensorless estimator.
 	float mechanical_power_bandwidth; // [rad/s] filter cutoff for mechanical power for spinout detction
 	float electrical_power_bandwidth; // [rad/s] filter cutoff for electrical power for spinout detection
 	float spinout_electrical_power_threshold; // [W] electrical power threshold for spinout detection
@@ -75,18 +71,16 @@ extern  float *controller_pos_estimate_linear_src_;
 extern  float *controller_pos_estimate_circular_src_;
 extern  float *controller_vel_estimate_src_;
 extern  float *controller_pos_wrap_src_; 
-extern  float vel_integrator_torque_;
 extern  float vel_setpoint_;
 extern  float input_vel_;
 extern  float input_pos_;
 extern  float input_torque_;
 extern  float torque_output_;
-extern  bool input_pos_updated_;
+// extern  bool input_pos_updated_;
 /****************************************************************************/
 void controller_config_default(void);
 void controller_para_init(void);
 void controller_reset(void);
-bool control_mode_updated(void);
 bool controller_update(void);
 /****************************************************************************/
 

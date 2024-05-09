@@ -17,7 +17,6 @@ extern  float  pi_gains_[2];
 /****************************************************************************/
 bool enqueue_modulation_timings(float mod_alpha, float mod_beta);
 void on_measurement(uint32_t input_timestamp, Iph_ABC_t *current);
-void foc_update(void);
 void pwm_update_cb(void);
 void foc_reset(void);
 /****************************************************************************/

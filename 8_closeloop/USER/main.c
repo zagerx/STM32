@@ -43,7 +43,6 @@ void control_loop_cb(void)
 	controller_update();
 	openloop_controller_update();
 	motor_update();
-	foc_update();
 	
 	if((motor_error!=0)&&(print_flag==0))
 	{
@@ -172,7 +171,7 @@ void commander_run(void)
 		case 'K': {  //设置位置 K2，单位 turn
 			input_pos_ = atof((const char *)(rcv2_buff+1));
 			USART2_SendDMA(sprintf(snd2_buff,"K=%.2f\r\n", input_pos_));
-			input_pos_updated_ = true;  //针对梯形轨迹模式，更新目标位置
+			// input_pos_updated_ = true;  //针对梯形轨迹模式，更新目标位置
 		} break;
 		case 'V': {  //读取实际速度，单位 turn/s
 			USART2_SendDMA(sprintf(snd2_buff,"vel=%.2f\r\n", vel_estimate_));
@@ -234,7 +233,7 @@ void USBcommander_run(void)
 				input_pos_ = atof((const char *)(usb_recbuff+1));
 				len=sprintf((char *)usb_sndbuff, "K=%.2f\r\n", input_pos_);
 				usb_send(usb_sndbuff, len);
-				input_pos_updated_ = true;  //针对梯形轨迹模式，更新目标位置
+				// input_pos_updated_ = true;  //针对梯形轨迹模式，更新目标位置
 			} break;
 			case 'V': {  //读取当前速度 turn/s
 				len=sprintf((char *)usb_sndbuff, "vel=%.4f\r\n", vel_estimate_);

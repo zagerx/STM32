@@ -11,8 +11,8 @@ float  Ialpha_beta[2];
 
 float2D  Idq_setpoint_;
 float2D  Vdq_setpoint_;
-float  phase_;
-float  phase_vel_;
+static float  phase_;
+static float  phase_vel_;
 float2D  *Idq_setpoint_src_;
 float2D  *Vdq_setpoint_src_;
 float  *phase_src_;
@@ -147,30 +147,19 @@ bool FOC_current(float Id_des, float Iq_des, float I_phase, float pwm_phase)   /
 	return true;
 }
 /*****************************************************************************/
-void foc_update(void)
-{
-	if((Idq_setpoint_src_==NULL)||(Vdq_setpoint_src_==NULL))
-		return;  //刚上电时还没有赋值指针，发送指令“A”才赋值
-	
-	Idq_setpoint_.d = Idq_setpoint_src_->d;
-	Idq_setpoint_.q = Idq_setpoint_src_->q;
-	Vdq_setpoint_.d = Vdq_setpoint_src_->d;
-	Vdq_setpoint_.q = Vdq_setpoint_src_->q;
-	phase_ = *phase_src_;
-	phase_vel_ = *phase_vel_src_;
-}
+
 /*****************************************************************************/
 //0.5.6使用了包含函数指针的类，切换不同工作状态，非常不直观。所以移植时更改为标志位判断
-uint32_t test_cnt;
 void pwm_update_cb(void)
 {
 	if(meas_resis==1)Resistance_get_alpha_beta_output();      //测量电阻时
 	else if(meas_induc==1)Inductance_get_alpha_beta_output(); //测量电感时
 	else   //正常工作时
 	{
-		float pwm_phase = phase_ + 1.5f * current_meas_period * phase_vel_;  //0.5.6是在反park变换时计算，效果一样
-		test_cnt++;
-		FOC_current(Idq_setpoint_.d, Idq_setpoint_.q, phase_, pwm_phase);  //highcurrent电机用电流模式
+		// float pwm_phase = phase_ + 1.5f * current_meas_period * phase_vel_;  //0.5.6是在反park变换时计算，效果一样
+		// FOC_current(motor_Idq_setpoint_.d, motor_Idq_setpoint_.q, phase_, pwm_phase);  //highcurrent电机用电流模式
+		float pwm_phase = encoder_config.phase_ + 1.5f * current_meas_period * encoder_config.phase_vel_;  //0.5.6是在反park变换时计算，效果一样
+		FOC_current(motor_Idq_setpoint_.d, motor_Idq_setpoint_.q, encoder_config.phase_, pwm_phase);  //highcurrent电机用电流模式		
 	}
 }
 /*****************************************************************************/

@@ -16,7 +16,7 @@ float effective_current_lim_ = 10.0f; // [A]
 float max_allowed_current_ = 0.0f;    // [A] set in setup()
 float max_dc_calib_ = 0.0f;           // [A] set in setup()
 
-float *motor_torque_setpoint_src_; // Usually points to the Controller object's output
+// float *motor_torque_setpoint_src_; // Usually points to the Controller object's output
 float *motor_phase_vel_src_;       // Usually points to the Encoder object's output
 float2D  motor_Vdq_setpoint_;
 float2D  motor_Idq_setpoint_;
@@ -76,6 +76,10 @@ void motor_setup(void)
 	max_allowed_current_ = max_unity_gain_current * phase_current_rev_gain_;  // =1215*0.05=60.75 A
 
 	max_dc_calib_ = 0.1f * max_allowed_current_;  //约等于 6A
+
+
+	effective_current_lim_ = 30.0f;
+	max_allowed_current_ = 60.75f;
 }
 /****************************************************************************/
 float  cali_target_current_;
@@ -338,10 +342,7 @@ float motor_effective_current_lim(void)
 	// Configured limit
 	float current_lim = motor_config.current_lim;
 	// Hardware limit
-	if (motor_config.motor_type == MOTOR_TYPE_GIMBAL)
-		current_lim = min(current_lim, 0.98f*one_by_sqrt3*vbus_voltage); //gimbal motor is voltage control，云台电机的电压不超过 12V/1.732=6.9，防止超调
-	else
-		current_lim = min(current_lim, max_allowed_current_);
+	current_lim = min(current_lim, max_allowed_current_);
 	
 	// Apply thermistor current limiters，
 	//根据电机和MOS的温度限电流，此功能有很高实用价值，但没有移植，loop222,20230809
@@ -356,31 +357,19 @@ float motor_effective_current_lim(void)
 //Note - for ACIM motors, available torque is allowed to be 0.
 float motor_max_available_torque(void)
 {
-//	float max_torque = effective_current_lim_ * motor_config.torque_constant;
-//	max_torque = clamp(max_torque, 0.0f, motor_config.torque_lim);
-//	return max_torque;
-	
 	return effective_current_lim_ * motor_config.torque_constant;
 }
 /****************************************************************************/
 /****************************************************************************/
 void motor_update(void)
 {
-	// Load torque setpoint, convert to motor direction
-	float *maybe_torque;
-	maybe_torque = motor_torque_setpoint_src_;
-	if (!has_value(maybe_torque))
-	{
-		return;
-	}
-	float torque = encoder_config.direction * *maybe_torque;
+
+	float torque = encoder_config.direction * torque_output_;
 	
 	// Load setpoints from previous iteration.
 	float id = motor_Idq_setpoint_.d;
 	float iq = motor_Idq_setpoint_.q;
 	
-	// Load effective current limit
-	motor_effective_current_lim();    //计算电流限制值
 	float ilim = effective_current_lim_;
 	
 	id = clamp(id, -ilim*0.99f, ilim*0.99f); // 1% space reserved for Iq to avoid numerical issues
@@ -391,44 +380,10 @@ void motor_update(void)
 	float Iq_lim = (iq_lim_sqr <= 0.0f) ? 0.0f : sqrt(iq_lim_sqr);
 	iq = clamp(iq, -Iq_lim, Iq_lim);
 	
-	if (motor_config.motor_type != MOTOR_TYPE_GIMBAL)
-	{
-		motor_Idq_setpoint_.d = id;
-		motor_Idq_setpoint_.q = iq;
-	}
+
+	motor_Idq_setpoint_.d = id;
+	motor_Idq_setpoint_.q = iq;
 	
-	// float vd = 0.0f;
-	// float vq = 0.0f;
-	// float *phase_vel;
-	// phase_vel = motor_phase_vel_src_;
-	
-	// if (motor_config.R_wL_FF_enable)  //电流环解藕前馈补偿
-	// {
-	// 	if (!has_value(phase_vel))
-	// 	{
-	// 		motor_error |= ERROR_UNKNOWN_PHASE_VEL;
-	// 		return;
-	// 	}
-	// 	vd -= *phase_vel * motor_config.phase_inductance * iq;
-	// 	vq += *phase_vel * motor_config.phase_inductance * id;
-	// 	vd += motor_config.phase_resistance * id;
-	// 	vq += motor_config.phase_resistance * iq;
-	// }
-	
-	// if (motor_config.bEMF_FF_enable)  //反电动势补偿
-	// {
-	// 	if (!has_value(phase_vel))
-	// 	{
-	// 		motor_error |= ERROR_UNKNOWN_PHASE_VEL;
-	// 		return;
-	// 	}
-	// 	vq += *phase_vel * (2.0f/3.0f) * (motor_config.torque_constant / motor_config.pole_pairs);
-	// }
-	
-	// {
-	// 	motor_Vdq_setpoint_.d = vd;
-	// 	motor_Vdq_setpoint_.q = vq;
-	// }
 }
 /****************************************************************************/
 

@@ -53,7 +53,7 @@ uint8_t fetch_and_reset_adcs(Iph_ABC_t *current)
 #define LED_blink   GPIOD->ODR^=(1<<2)  //PD2
 /****************************************************************************/
 uint32_t time_cntr=0;
-volatile uint32_t timestamp_ = 0;
+static volatile uint32_t timestamp_ = 0;
 extern  void control_loop_cb(void);  //在main.c文件中
 extern uint8_t usb_sndbuff[128];
 
@@ -81,12 +81,12 @@ void TIM1_UP_TIM10_IRQHandler(void)
 	{
 		current_meas_cb(timestamp_, &current0);  //传入采样值并运算 clark变换
 		encoder_update();
-		controller_update();//更新力矩
+		// controller_update();//更新力矩
 	}
 	else
 	{
+		controller_update();
 		motor_update();//更新iq限制值
-		foc_update();
 		for(i=0;i<20;i++);                   //延时，同时等待ADC完毕
 		dc_calib_cb(&current0);  //timestamp_ + TIM_1_8_PERIOD_CLOCKS * (TIM_1_8_RCR + 1), 
 		pwm_update_cb();         //timestamp_ + 3 * TIM_1_8_PERIOD_CLOCKS * (TIM_1_8_RCR + 1);

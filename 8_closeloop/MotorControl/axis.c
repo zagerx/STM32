@@ -15,22 +15,12 @@ bool start_closed_loop_control(void)
 	controller_pos_estimate_linear_src_ = &pos_estimate_;
 	controller_vel_estimate_src_ = &vel_estimate_;
 	
-	// To avoid any transient on startup, we intialize the setpoint to be the current position
-	control_mode_updated();
-	input_pos_updated_ = true;
-	// Avoid integrator windup issues
-	vel_integrator_torque_ = 0.0f;
-	
-	motor_torque_setpoint_src_ = &torque_output_;
-	
-	//enable_current_control_src_ = (motor_config.motor_type != MOTOR_TYPE_GIMBAL);
 	Idq_setpoint_src_ = &motor_Idq_setpoint_;
 	Vdq_setpoint_src_ = &motor_Vdq_setpoint_;
 	phase_src_ = &encoder_config.phase_;
 	phase_vel_src_ = &encoder_config.phase_vel_;
 	motor_phase_vel_src_ = &encoder_config.phase_vel_;
 	
-	// In sensorless mode the motor is already armed.
 	if (!is_armed_)
 	{
 		arm();
