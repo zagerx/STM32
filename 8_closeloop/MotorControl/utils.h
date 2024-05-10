@@ -45,9 +45,7 @@ static inline float fmodf_pos(float x, float y) {
 	return res;
 }
 
-static inline float wrap_pm_pi(float x) {
-	return wrap_pm(x, 2 * M_PI);
-}
+
 
 // Modulo (as opposed to remainder), per https://stackoverflow.com/a/19288271
 static inline int mod(const int dividend, const int divisor)
