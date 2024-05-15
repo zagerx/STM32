@@ -134,7 +134,7 @@ void USART2_SendDMA(uint32_t len)
 /********************************************************************
  * USART2 接收空闲中断服务函数 
 ********************************************************************/
-
+void commander_run(void);
 void USART2_IRQHandler(void)
 {
 	if(USART_GetITStatus(USART2,USART_IT_IDLE) == SET)
@@ -147,7 +147,7 @@ void USART2_IRQHandler(void)
 		DMA_SetCurrDataCounter(DMA1_Stream5,USART2_BUFFER_SIZE); //数据传输量
 		DMA_Cmd(DMA1_Stream5,ENABLE);                            //开启DMA传输
 		
-		// commander_run();    //USART2的通信处理
+		commander_run();    //USART2的通信处理
 	}
 }
 /********************************************************************

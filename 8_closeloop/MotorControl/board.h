@@ -2,7 +2,7 @@
 #ifndef __BOARD_LIB_H
 #define __BOARD_LIB_H
 
-#include "MyProject.h"
+// #include "MyProject.h"
 
 bool enqueue_modulation_timings(float mod_alpha, float mod_beta);
 void pwm_update_cb(void);

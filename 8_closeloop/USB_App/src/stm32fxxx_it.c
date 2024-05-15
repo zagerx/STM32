@@ -242,5 +242,21 @@ void OTG_HS_EP1_OUT_IRQHandler(void)
 /*void PPP_IRQHandler(void)
 {
 }*/
+extern void get_currment_theta(void);
+extern void __loopcurrment(void);
 
+void TIM1_UP_TIM10_IRQHandler(void)
+{
+	TIM_ClearITPendingBit(TIM1, TIM_IT_Update);
+	
+	uint8_t counting_down = TIM1->CR1 & TIM_CR1_DIR;
+	if(!counting_down)   //=0?????,????????,????
+	{
+		get_currment_theta();
+	}
+	else
+	{
+		__loopcurrment();       
+	}
+}
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

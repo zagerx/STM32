@@ -16,26 +16,11 @@ uint32_t timecntr_pre=0;
 uint8_t usb_recbuff[128];
 uint8_t usb_sndbuff[128];
 uint32_t usb_rcv_count;
- extern  float input_vel_;
- extern  float input_pos_;
- extern  float input_torque_;
+extern  float input_torque_;
 /******************************************************************************/
-void commander_run(void);
 void USBcommander_run(void);
 /******************************************************************************/
-//us计时，每71.5分钟溢出循环一次
-uint32_t timecount(void)
-{
-	uint32_t  diff,now_us;
-	
-	now_us = micros();    //0xFFFFFFFF=4294967295 us=71.5分钟
-	if(now_us>=timecntr_pre)diff = now_us - timecntr_pre;   //us
-	else
-		diff = 0xFFFFFFFF - timecntr_pre + now_us;
-	timecntr_pre = now_us;
-	
-	return diff;
-}
+
 
 /****************************************************************************/
 // @brief: Returns number of microseconds since system startup
@@ -50,6 +35,22 @@ uint32_t micros(void)
 
     return (ms * 1000) + cycle_cnt;
 }
+
+//us计时，每71.5分钟溢出循环一次
+uint32_t timecount(void)
+{
+	uint32_t  diff,now_us;
+	
+	now_us = micros();    //0xFFFFFFFF=4294967295 us=71.5分钟
+	if(now_us>=timecntr_pre)diff = now_us - timecntr_pre;   //us
+	else
+		diff = 0xFFFFFFFF - timecntr_pre + now_us;
+	timecntr_pre = now_us;
+	
+	return diff;
+}
+
+
 /****************************************************************************/
 // @brief: Busy wait delay for given amount of microseconds (us)
 void delay_us(uint32_t us)
@@ -99,6 +100,7 @@ typedef enum
 	AXIS_STATE_ENCODER_OFFSET_CALIBRATION,
 	AXIS_STATE_LOCKIN_SPIN,
 	AXIS_STATE_CLOSED_LOOP_CONTROL,
+	AXIS_STATE_STOP,
 	AXIS_STATE_UNDEFINED,
 } AXIS_State_Type;
 AXIS_State_Type  current_state_;
@@ -171,6 +173,47 @@ int main(void)
 }
 
 /*****************************************************************************/
+
+void commander_run(void)
+{
+	switch(rcv2_buff[0])
+	{
+		case 'H': {
+		} break;
+		
+		case 'C': {  //测量电阻电感，3秒后电机“嘀”一声
+			current_state_ = AXIS_STATE_MOTOR_CALIBRATION;
+		} break;
+
+		case 'G': {  //闭环控制
+			current_state_ = AXIS_STATE_CLOSED_LOOP_CONTROL;
+		} break;
+		case 'I': {  //空闲模式
+			input_torque_ = 0;
+			disarm();
+			current_state_ = AXIS_STATE_IDLE;
+		} break;
+		
+		case 'S': {  //设置力矩 S0.1
+			input_torque_ = atof((const char *)(rcv2_buff+1));
+		} break;
+		case 'T': {  //设置速度 T10，单位 turn/s
+		} break;
+		case 'K': {  //设置位置 K2，单位 turn
+
+		} break;
+		case 'V': {  //读取实际速度，单位 turn/s
+			USART2_SendDMA(sprintf(snd2_buff,"vel=%.2f\r\n", vel_estimate_));
+		} break;
+		case 'P': {  //当前绝对位置，单位 turn
+			USART2_SendDMA(sprintf(snd2_buff,"pos=%.2f\r\n", pos_estimate_));
+		} break;
+		case 'Q': {  //读取错误标志
+		} break;
+	}
+	memset(rcv2_buff,0,16);  //USART2_BUFFER_SIZE //清空接收数组,长度覆盖接收的字节数即可
+}
+
 //USB虚拟串口通信
 //放在USB接收中断里处理 App/usbd_cdc_vcp.c文件中的VCP_DataRx()函数中
 void USBcommander_run(void)

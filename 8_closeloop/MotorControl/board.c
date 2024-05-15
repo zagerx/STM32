@@ -40,7 +40,7 @@ static float  vbus_voltage=12.0f;
 
 static  Iph_ABC_t  motor_Iabc;//ToDo
 static float  Ialpha_beta[2];
-static floatAlbe_t  motor_Ialphabeta[2];
+static floatAlbe_t  motor_Ialphabeta;
 static float2D  motor_Idq;
 
 static float  pi_gains_[2];
@@ -50,7 +50,7 @@ static float effective_current_lim_ = 10.0f; // [A]
 static float max_allowed_current_ = 0.0f;    // [A] set in setup()
 
 
-float input_torque_ = 0.0f;  // [Nm]
+float input_torque_ = 0.05f;  // [Nm]
 
 void arm(void);
 void disarm(void);
@@ -61,7 +61,10 @@ void disarm(void);
 #define  VELOCITY_I                      0.2f               //速度I参数
 #define  VELOCITY_limit                  50                 //最大速度限制，力矩模式超过限速力矩会下降
 #define CURRMENT_MEAS_PERIOD             0.000125f
-
+#define VBUS_S_DIVIDER_RATIO   18.73f    //电源分压电阻2.2k+39k
+#define SHUNT_RESISTANCE       0.001f    //采样电阻，如果是0.5mΩ=0.0005f,1mΩ=0.001f
+#define PHASE_CURRENT_GAIN     20.0f     //电流采样运放倍数，20倍
+#define TIM_PERIOD             3500
 static float limitVel(float vel_limit, float vel_estimate, float vel_gain, float torque)
 {
 	float Tmax = (vel_limit - vel_estimate) * vel_gain;
@@ -115,10 +118,6 @@ static float torqueMode_limittorque(void)
 	max_allowed_current_ = 60.75f;	
 }
 
-
-
-
-
  void arm(void)
 {
 	foc_reset();
@@ -153,27 +152,9 @@ static void vbus_sense_adc_cb(uint32_t adc_value)
 {
 	float voltage_scale = 3.3f * VBUS_S_DIVIDER_RATIO / 4096;
 	vbus_voltage = adc_value * voltage_scale;
-	vbus_voltage = 24.0F;
+	// vbus_voltage = 24.0F;
 }
-//在TIM1的更新中断函数中被调用
-static uint8_t fetch_and_reset_adcs(Iph_ABC_t *current)
-{
-	uint8_t all_adcs_done = (((ADC1->SR & ADC_SR_JEOC) == ADC_SR_JEOC) && ((ADC2->SR & ADC_SR_JEOC) == ADC_SR_JEOC) && ((ADC3->SR & ADC_SR_JEOC) == ADC_SR_JEOC));
-  if(!all_adcs_done)return 0;
-	
-	vbus_sense_adc_cb(ADC1->JDR1);
-	current->phB = phase_current_from_adcval(ADC2->JDR1);
-	current->phC = phase_current_from_adcval(ADC3->JDR1);
-	current->phA = -current->phB - current->phC;
-	motor_Iabc.phA = current->phA - 0.0f;//DC_calib_.phA;
-	motor_Iabc.phB = current->phB - (-0.2f);//DC_calib_.phB;
-	motor_Iabc.phC = current->phC - 0.2f;//DC_calib_.phC;	
-	ADC1->SR = ~(ADC_SR_JEOC);
-	ADC2->SR = ~(ADC_SR_JEOC | ADC_SR_OVR);
-	ADC3->SR = ~(ADC_SR_JEOC | ADC_SR_OVR);
-	
-	return 1;
-}
+
 /****************************************************************************
 #define LED_blink   GPIOD->ODR^=(1<<2)  //PD2
 uint32_t time_cntr=0;
@@ -341,9 +322,9 @@ static bool enqueue_modulation_timings(float mod_alpha, float mod_beta)
 	{
 		return false;
 	}
-	TIM1->CCR1 = (uint16_t)(tA * (float)TIM_1_8_PERIOD_CLOCKS);
-	TIM1->CCR2 = (uint16_t)(tB * (float)TIM_1_8_PERIOD_CLOCKS);
-	TIM1->CCR3 = (uint16_t)(tC * (float)TIM_1_8_PERIOD_CLOCKS);
+	TIM1->CCR1 = (uint16_t)(tA * (float)TIM_PERIOD);
+	TIM1->CCR2 = (uint16_t)(tB * (float)TIM_PERIOD);
+	TIM1->CCR3 = (uint16_t)(tC * (float)TIM_PERIOD);
 
 	test_A = TIM1->CCR1;
 	test_B = TIM1->CCR2;
@@ -356,23 +337,22 @@ static void foc_reset(void)
 {
 	v_current_control_integral_d = 0.0f;  //积分清零，否则闭环时电机误动作
 	v_current_control_integral_q = 0.0f;
-	Ialpha_beta[0] = 0;
-	Ialpha_beta[1] = 0;
+	motor_Ialphabeta.alpha = 0;
+	motor_Ialphabeta.beta = 0;
 }
 /*****************************************************************************/
 //0.5.6版本，clark变换与之后的变换分开处理
 
 static bool FOC_current(float Id_des, float Iq_des, float I_phase, float pwm_phase)   //I_phase是park变换时的θ，pwm_phase是park逆变换时的θ
 {
-	Ialpha_beta[0] = motor_Iabc.phA;
-	Ialpha_beta[1] = one_by_sqrt3 * (motor_Iabc.phB - motor_Iabc.phC);
-
+	motor_Ialphabeta.alpha = motor_Iabc.phA;
+	motor_Ialphabeta.beta = one_by_sqrt3 * (motor_Iabc.phB - motor_Iabc.phC);
 
 	// Park transform
 	float c_I = our_arm_cos_f32(I_phase);
 	float s_I = our_arm_sin_f32(I_phase);
-	float Id = c_I * Ialpha_beta[0] + s_I * Ialpha_beta[1];
-	float Iq = c_I * Ialpha_beta[1] - s_I * Ialpha_beta[0];
+	float Id = c_I * motor_Ialphabeta.alpha + s_I * motor_Ialphabeta.beta;
+	float Iq = c_I * motor_Ialphabeta.beta - s_I * motor_Ialphabeta.alpha;
 	// Current error
 	float Ierr_d = Id_des - Id;
 	float Ierr_q = Iq_des - Iq;
@@ -403,7 +383,7 @@ static bool FOC_current(float Id_des, float Iq_des, float I_phase, float pwm_pha
 		v_current_control_integral_d += Ierr_d * (pi_gains_[1] * CURRMENT_MEAS_PERIOD);
 		v_current_control_integral_q += Ierr_q * (pi_gains_[1] * CURRMENT_MEAS_PERIOD);
 	}
-	
+
 	// Inverse park transform
 	float c_p = our_arm_cos_f32(pwm_phase);
 	float s_p = our_arm_sin_f32(pwm_phase);
@@ -423,6 +403,8 @@ void pwm_update_cb(void)
 }
 void _convert_current(Iph_ABC_t *current,uint16_t ADC_A,uint16_t ADC_B,uint16_t ADC_C)
 {
+	vbus_sense_adc_cb(ADC1->JDR1);
+  
 	current->phB = phase_current_from_adcval(ADC_B);
 	current->phC = phase_current_from_adcval(ADC_C);
 	current->phA = -current->phB - current->phC;
@@ -430,34 +412,24 @@ void _convert_current(Iph_ABC_t *current,uint16_t ADC_A,uint16_t ADC_B,uint16_t 
 	current->phA = current->phA - 0.0f;//DC_calib_.phA;
 	current->phB = current->phB - (-0.2f);//DC_calib_.phB;
 	current->phC = current->phC - 0.2f;//DC_calib_.phC;	
-
-
 }
-void TIM1_UP_TIM10_IRQHandler(void)
+
+
+void get_currment_theta(void)
 {
+	encoder_update();
+	uint8_t all_adcs_done = (((ADC1->SR & ADC_SR_JEOC) == ADC_SR_JEOC) && ((ADC2->SR & ADC_SR_JEOC) == ADC_SR_JEOC) && ((ADC3->SR & ADC_SR_JEOC) == ADC_SR_JEOC));
+	for (int16_t i = 0; i < 20; i++);
 	
-	TIM_ClearITPendingBit(TIM1, TIM_IT_Update);
-	
-	uint8_t counting_down = TIM1->CR1 & TIM_CR1_DIR;
-	if(!counting_down)   //=0为递增计数,上臂为低下臂为高,此时采样
-	{
-		encoder_update();
-
-		/**/
-		uint8_t all_adcs_done = (((ADC1->SR & ADC_SR_JEOC) == ADC_SR_JEOC) && ((ADC2->SR & ADC_SR_JEOC) == ADC_SR_JEOC) && ((ADC3->SR & ADC_SR_JEOC) == ADC_SR_JEOC));
-		if(!all_adcs_done)
-			return;	
-		vbus_sense_adc_cb(ADC1->JDR1);
-		_convert_current(&motor_Iabc,0,ADC2->JDR1,ADC3->JDR1);
-
-		// fetch_and_reset_adcs(&motor_Iabc);     //电流采样，获得的采样值在current0
-	}
-	else
-	{
-		torqueMode_limitIq(torqueMode_limittorque());//更新iq限制值
-		pwm_update_cb();         
-	}
+	vbus_sense_adc_cb(ADC1->JDR1);
+	_convert_current(&motor_Iabc,0,ADC2->JDR1,ADC3->JDR1);
 }
+void __loopcurrment(void)
+{
+	torqueMode_limitIq(torqueMode_limittorque());//更新iq限制值
+	pwm_update_cb();
+}
+
 
 
 

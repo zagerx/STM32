@@ -17,15 +17,11 @@
 #define clamp(amt,low,high) ((amt)<(low)?(low):((amt)>(high)?(high):(amt)))
 #define has_value(a)  (a==NULL ? 0:1)
 /****************************************************************************/
-int SVM(float alpha, float beta, float* tA, float* tB, float* tC);
-uint32_t micros(void);
-void delay_us(uint32_t us);
 /****************************************************************************/
 static inline float SQ(float x)
 {
 	return x * x;
 }
-
 // Wrap value to range.
 // With default rounding mode (round to nearest),
 // the result will be in range -y/2 to y/2
