@@ -55,18 +55,7 @@ static inline int mod(const int dividend, const int divisor)
 	return r;
 }
 /****************************************************************************/
-typedef struct 
-{
-	float phA;
-	float phB;
-	float phC;
-} Iph_ABC_t;
 
-typedef struct 
-{
-	float d;
-	float q;
-} float2D;
 /****************************************************************************/
 
 

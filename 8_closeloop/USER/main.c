@@ -36,6 +36,33 @@ uint32_t timecount(void)
 	
 	return diff;
 }
+
+/****************************************************************************/
+// @brief: Returns number of microseconds since system startup
+uint32_t micros(void) 
+{
+    uint32_t ms, cycle_cnt;
+	
+    do {
+        ms = uwTick;
+        cycle_cnt = TIM14->CNT;
+     } while (ms != uwTick);
+
+    return (ms * 1000) + cycle_cnt;
+}
+/****************************************************************************/
+// @brief: Busy wait delay for given amount of microseconds (us)
+void delay_us(uint32_t us)
+{
+	uint32_t start = micros();
+	while (micros() - start < (uint32_t) us) {
+		__NOP();  //asm volatile ("nop");
+	}
+}
+/*****************************************************************************/
+
+
+
 /****************************************************************************/
 uint32_t print_flag;
 
@@ -136,9 +163,6 @@ int main(void)
 
 	USART2_SendDMA(sprintf(snd2_buff,"Motor Ready!\r\n"));
 	
-	//在MyProject.h中设置电机参数和控制模式。参数设置与官方代码一致，请先熟悉官方odrivetool的操作
-	//发送指令“C”，测量电机的电阻电感并校准电机，发送指令“G”进入闭环，然后设置对应的速度或者位置
-
 	while(1)
 	{
 		run_state_machine_loop();
