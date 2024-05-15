@@ -24,7 +24,6 @@
 #include "utils.h"
 #include "arm_cos_f32.h"
 #include "board.h"
-//#include "axis.h"
 #include "encoder.h"
 
 /****************************************************************************/

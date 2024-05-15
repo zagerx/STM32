@@ -1,5 +1,17 @@
 
-#include "MyProject.h"
+// #include "MyProject.h"
+
+
+#include "stm32f4xx.h"
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdbool.h>
+#include "utils.h"
+#include "arm_cos_f32.h"
+#include "board.h"
+#include "encoder.h"
+
 
 typedef struct 
 {
@@ -13,17 +25,23 @@ typedef struct
 	float d;
 	float q;
 } float2D;
-
+typedef struct 
+{
+	float alpha;
+	float beta;
+} floatAlbe_t;
 #define  CURRENT_SENSE_MIN_VOLT  0.3f
 #define  CURRENT_SENSE_MAX_VOLT  3.0f
 #define  CURRENT_ADC_LOWER_BOUND  (uint32_t)((float)(1 << 12) * CURRENT_SENSE_MIN_VOLT / 3.3f)
 #define  CURRENT_ADC_UPPER_BOUND  (uint32_t)((float)(1 << 12) * CURRENT_SENSE_MAX_VOLT / 3.3f)
 
 static float  vbus_voltage=12.0f;
-static Iph_ABC_t  current0;
-static  Iph_ABC_t  current_meas_;//ToDo
+
+
+static  Iph_ABC_t  motor_Iabc;//ToDo
 static float  Ialpha_beta[2];
-static float2D  motor_Idq_setpoint_;
+static floatAlbe_t  motor_Ialphabeta[2];
+static float2D  motor_Idq;
 
 static float  pi_gains_[2];
 static float  v_current_control_integral_d = 0.0f; // [V]
@@ -42,7 +60,7 @@ void disarm(void);
 #define  VELOCITY_P                      0.02f              //速度P参数
 #define  VELOCITY_I                      0.2f               //速度I参数
 #define  VELOCITY_limit                  50                 //最大速度限制，力矩模式超过限速力矩会下降
-
+#define CURRMENT_MEAS_PERIOD             0.000125f
 
 static float limitVel(float vel_limit, float vel_estimate, float vel_gain, float torque)
 {
@@ -135,6 +153,7 @@ static void vbus_sense_adc_cb(uint32_t adc_value)
 {
 	float voltage_scale = 3.3f * VBUS_S_DIVIDER_RATIO / 4096;
 	vbus_voltage = adc_value * voltage_scale;
+	vbus_voltage = 24.0F;
 }
 //在TIM1的更新中断函数中被调用
 static uint8_t fetch_and_reset_adcs(Iph_ABC_t *current)
@@ -146,9 +165,9 @@ static uint8_t fetch_and_reset_adcs(Iph_ABC_t *current)
 	current->phB = phase_current_from_adcval(ADC2->JDR1);
 	current->phC = phase_current_from_adcval(ADC3->JDR1);
 	current->phA = -current->phB - current->phC;
-	current_meas_.phA = current->phA - 0.0f;//DC_calib_.phA;
-	current_meas_.phB = current->phB - (-0.2f);//DC_calib_.phB;
-	current_meas_.phC = current->phC - 0.2f;//DC_calib_.phC;	
+	motor_Iabc.phA = current->phA - 0.0f;//DC_calib_.phA;
+	motor_Iabc.phB = current->phB - (-0.2f);//DC_calib_.phB;
+	motor_Iabc.phC = current->phC - 0.2f;//DC_calib_.phC;	
 	ADC1->SR = ~(ADC_SR_JEOC);
 	ADC2->SR = ~(ADC_SR_JEOC | ADC_SR_OVR);
 	ADC3->SR = ~(ADC_SR_JEOC | ADC_SR_OVR);
@@ -175,8 +194,8 @@ static void torqueMode_limitIq(float torque)
 	 torque = (1) * torque;
 	
 	// Load setpoints from previous iteration.
-	float id = motor_Idq_setpoint_.d;
-	float iq = motor_Idq_setpoint_.q;
+	float id = motor_Idq.d;
+	float iq = motor_Idq.q;
 	
 	float ilim = 30.0f;
 	
@@ -189,8 +208,8 @@ static void torqueMode_limitIq(float torque)
 	iq = clamp(iq, -Iq_lim, Iq_lim);
 	
 
-	motor_Idq_setpoint_.d = id;
-	motor_Idq_setpoint_.q = iq;
+	motor_Idq.d = id;
+	motor_Idq.q = iq;
 	
 }
 
@@ -345,8 +364,8 @@ static void foc_reset(void)
 
 static bool FOC_current(float Id_des, float Iq_des, float I_phase, float pwm_phase)   //I_phase是park变换时的θ，pwm_phase是park逆变换时的θ
 {
-	Ialpha_beta[0] = current_meas_.phA;
-	Ialpha_beta[1] = one_by_sqrt3 * (current_meas_.phB - current_meas_.phC);
+	Ialpha_beta[0] = motor_Iabc.phA;
+	Ialpha_beta[1] = one_by_sqrt3 * (motor_Iabc.phB - motor_Iabc.phC);
 
 
 	// Park transform
@@ -381,8 +400,8 @@ static bool FOC_current(float Id_des, float Iq_des, float I_phase, float pwm_pha
 	}
 	else
 	{
-		v_current_control_integral_d += Ierr_d * (pi_gains_[1] * current_meas_period);
-		v_current_control_integral_q += Ierr_q * (pi_gains_[1] * current_meas_period);
+		v_current_control_integral_d += Ierr_d * (pi_gains_[1] * CURRMENT_MEAS_PERIOD);
+		v_current_control_integral_q += Ierr_q * (pi_gains_[1] * CURRMENT_MEAS_PERIOD);
 	}
 	
 	// Inverse park transform
@@ -399,8 +418,20 @@ static bool FOC_current(float Id_des, float Iq_des, float I_phase, float pwm_pha
 }
 void pwm_update_cb(void)
 {
-	float pwm_phase = encoder_eletheta + 1.5f * current_meas_period * encoder_elespeed;  //0.5.6是在反park变换时计算，效果一样
-	FOC_current(motor_Idq_setpoint_.d, motor_Idq_setpoint_.q, encoder_eletheta, pwm_phase);  //highcurrent电机用电流模式		
+	float pwm_phase = encoder_eletheta + 1.5f * CURRMENT_MEAS_PERIOD * encoder_elespeed;  //0.5.6是在反park变换时计算，效果一样
+	FOC_current(motor_Idq.d, motor_Idq.q, encoder_eletheta, pwm_phase);  //highcurrent电机用电流模式		
+}
+void _convert_current(Iph_ABC_t *current,uint16_t ADC_A,uint16_t ADC_B,uint16_t ADC_C)
+{
+	current->phB = phase_current_from_adcval(ADC_B);
+	current->phC = phase_current_from_adcval(ADC_C);
+	current->phA = -current->phB - current->phC;
+
+	current->phA = current->phA - 0.0f;//DC_calib_.phA;
+	current->phB = current->phB - (-0.2f);//DC_calib_.phB;
+	current->phC = current->phC - 0.2f;//DC_calib_.phC;	
+
+
 }
 void TIM1_UP_TIM10_IRQHandler(void)
 {
@@ -411,7 +442,15 @@ void TIM1_UP_TIM10_IRQHandler(void)
 	if(!counting_down)   //=0为递增计数,上臂为低下臂为高,此时采样
 	{
 		encoder_update();
-		fetch_and_reset_adcs(&current0);     //电流采样，获得的采样值在current0
+
+		/**/
+		uint8_t all_adcs_done = (((ADC1->SR & ADC_SR_JEOC) == ADC_SR_JEOC) && ((ADC2->SR & ADC_SR_JEOC) == ADC_SR_JEOC) && ((ADC3->SR & ADC_SR_JEOC) == ADC_SR_JEOC));
+		if(!all_adcs_done)
+			return;	
+		vbus_sense_adc_cb(ADC1->JDR1);
+		_convert_current(&motor_Iabc,0,ADC2->JDR1,ADC3->JDR1);
+
+		// fetch_and_reset_adcs(&motor_Iabc);     //电流采样，获得的采样值在current0
 	}
 	else
 	{
